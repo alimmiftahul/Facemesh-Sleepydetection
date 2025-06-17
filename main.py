@@ -3,10 +3,14 @@ import mediapipe as mp
 import numpy as np
 import pygame
 import tkinter as tk
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+audio_path = os.path.join(current_dir, 'visual1.mp3')
 
 # Init pygame alarm
 pygame.mixer.init()
-pygame.mixer.music.load("visual1.mp3")
+pygame.mixer.music.load(audio_path)
 
 # Setup mediapipe
 mp_face_mesh = mp.solutions.face_mesh
@@ -31,6 +35,7 @@ RIGHT_EYE = [33, 160, 158, 133, 153, 144]
 running = False
 eye_closed_counter = 0
 yawn_counter = 0
+window_created = False  # Flag to track if the window was created
 
 # Functions
 def calculate_ear(landmarks, eye_idx, img_w, img_h):
@@ -46,7 +51,7 @@ def calculate_mar(landmarks, img_w, img_h):
     return abs(bottom - top) / img_h
 
 def update_frame():
-    global running, eye_closed_counter, yawn_counter
+    global running, eye_closed_counter, yawn_counter, window_created
 
     ret, frame = cap.read()
     if not ret:
@@ -60,7 +65,7 @@ def update_frame():
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = face_mesh.process(rgb)
 
-        if results.multi_face_landmarks:
+        if results.multi_face_landmarks:	
             landmarks = results.multi_face_landmarks[0].landmark
 
             mp_drawing.draw_landmarks(
@@ -102,12 +107,22 @@ def update_frame():
                 if pygame.mixer.music.get_busy():
                     pygame.mixer.music.stop()
 
-        frame = cv2.resize(frame, (0, 0), fx=0.6, fy=0.6)
-        cv2.imshow("Detection", frame)
-    else:
-        cv2.destroyWindow("Detection")
+        frame = cv2.resize(frame, (0, 0), fx=1.0, fy=1.0)
 
-    if cv2.waitKey(1) & 0xFF == 27:
+        # Only create the window if it has not been created yet
+        if not window_created:
+            cv2.imshow("Detection", frame)
+            window_created = True
+        else:
+            # Update the frame in the already created window
+            cv2.imshow("Detection", frame)
+    else:
+        # Close the window if running is False
+        if window_created:
+            cv2.destroyWindow("Detection")
+            window_created = False
+
+    if cv2.waitKey(1) & 0xFF == 27:  # Press Esc to exit
         exit_app()
         return
 
@@ -157,3 +172,4 @@ cap = cv2.VideoCapture(0)
 # Start update loop
 root.after(10, update_frame)
 root.mainloop()
+
