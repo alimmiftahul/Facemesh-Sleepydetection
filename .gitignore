@@ -6,4 +6,4 @@
 /facemesh
 /dist
 /build
-.cfg
+*.cfg
