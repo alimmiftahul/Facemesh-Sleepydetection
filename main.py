@@ -3,16 +3,20 @@ import mediapipe as mp
 import numpy as np
 import pygame
 import tkinter as tk
+from tkinter import simpledialog, messagebox
 import os
 
+# Set up file paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
-audio_path = os.path.join(current_dir, 'visual1.mp3')
+visual_alarm_path = os.path.join(current_dir, 'visual1.mp3')
+noface_alarm_path = os.path.join(current_dir, 'Warning.mp3')  # New alarm
 
-# Init pygame alarm
+# Initialize pygame and load alarms
 pygame.mixer.init()
-pygame.mixer.music.load(audio_path)
+visual_alarm = pygame.mixer.Sound(visual_alarm_path)
+noface_alarm = pygame.mixer.Sound(noface_alarm_path)
 
-# Setup mediapipe
+# MediaPipe face mesh setup
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(
     max_num_faces=1,
@@ -28,6 +32,7 @@ EAR_THRESH = 0.20
 MAR_THRESH = 0.68
 CLOSED_EYES_FRAME = 17
 YAWN_FRAME = 20
+NOFACE_FRAME = 30
 LEFT_EYE = [362, 385, 387, 263, 373, 380]
 RIGHT_EYE = [33, 160, 158, 133, 153, 144]
 
@@ -35,7 +40,13 @@ RIGHT_EYE = [33, 160, 158, 133, 153, 144]
 running = False
 eye_closed_counter = 0
 yawn_counter = 0
-window_created = False  # Flag to track if the window was created
+noface_counter = 0
+sleepy_count = 0
+is_sleeping = False
+window_created = False
+
+# Password
+APP_PASSWORD = "V1su4l"
 
 # Functions
 def calculate_ear(landmarks, eye_idx, img_w, img_h):
@@ -50,8 +61,34 @@ def calculate_mar(landmarks, img_w, img_h):
     bottom = int(landmarks[14].y * img_h)
     return abs(bottom - top) / img_h
 
+def ask_password():
+    pwd = simpledialog.askstring("Authentication", "Enter password:", show='*', parent=root)
+    if pwd == APP_PASSWORD:
+        return True
+    else:
+        messagebox.showerror("Access Denied", "Incorrect password.")
+        return False
+
+def start_detection():
+    global running
+    if ask_password():
+        running = True
+
+def stop_detection():
+    global running
+    if ask_password():
+        running = False
+        visual_alarm.stop()
+        noface_alarm.stop()
+
+def exit_app():
+    global cap
+    cap.release()
+    cv2.destroyAllWindows()
+    root.destroy()
+
 def update_frame():
-    global running, eye_closed_counter, yawn_counter, window_created
+    global running, eye_closed_counter, yawn_counter, noface_counter, window_created, sleepy_count, is_sleeping
 
     ret, frame = cap.read()
     if not ret:
@@ -65,7 +102,11 @@ def update_frame():
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = face_mesh.process(rgb)
 
-        if results.multi_face_landmarks:	
+        if results.multi_face_landmarks:
+            noface_counter = 0
+            if noface_alarm.get_num_channels() > 0:
+                noface_alarm.stop()
+
             landmarks = results.multi_face_landmarks[0].landmark
 
             mp_drawing.draw_landmarks(
@@ -88,6 +129,7 @@ def update_frame():
 
             cv2.putText(frame, f"EAR: {avg_ear:.2f}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
             cv2.putText(frame, f"MAR: {mar:.2f}", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            cv2.putText(frame, f"Sleep count: {sleepy_count}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
             if avg_ear < EAR_THRESH:
                 eye_closed_counter += 1
@@ -101,49 +143,45 @@ def update_frame():
 
             if eye_closed_counter > CLOSED_EYES_FRAME or yawn_counter > YAWN_FRAME:
                 cv2.putText(frame, "WAKE UP!", (180, 250), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
-                if not pygame.mixer.music.get_busy():
-                    pygame.mixer.music.play()
+                if not is_sleeping:
+                    sleepy_count += 1
+                    is_sleeping = True
+                if not visual_alarm.get_num_channels():
+                    visual_alarm.play()
             else:
-                if pygame.mixer.music.get_busy():
-                    pygame.mixer.music.stop()
+                if visual_alarm.get_num_channels() > 0:
+                    visual_alarm.stop()
+                is_sleeping = False
 
-        frame = cv2.resize(frame, (0, 0), fx=1.0, fy=1.0)
+        else:
+            noface_counter += 1
+            if noface_counter > NOFACE_FRAME:
+                cv2.putText(frame, "FACE NOT DETECTED!", (120, 250), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+                if not noface_alarm.get_num_channels():
+                    noface_alarm.play()
+            if visual_alarm.get_num_channels() > 0:
+                visual_alarm.stop()
+            is_sleeping = False
 
-        # Only create the window if it has not been created yet
         if not window_created:
             cv2.imshow("Detection", frame)
             window_created = True
         else:
-            # Update the frame in the already created window
             cv2.imshow("Detection", frame)
     else:
-        # Close the window if running is False
         if window_created:
             cv2.destroyWindow("Detection")
             window_created = False
+            visual_alarm.stop()
+            noface_alarm.stop()
 
-    if cv2.waitKey(1) & 0xFF == 27:  # Press Esc to exit
+    if cv2.waitKey(1) & 0xFF == 27:
         exit_app()
         return
 
     root.after(10, update_frame)
 
-def start_detection():
-    global running
-    running = True
-
-def stop_detection():
-    global running
-    running = False
-    pygame.mixer.music.stop()
-
-def exit_app():
-    global cap
-    cap.release()
-    cv2.destroyAllWindows()
-    root.destroy()
-
-# Init GUI
+# GUI Setup
 root = tk.Tk()
 root.title("Sleep Detector")
 root.geometry("600x400")
@@ -166,10 +204,9 @@ btn_exit = tk.Button(root, text="Exit", width=35, height=3, font=btn_font,
                      bg="#ff4d4d", fg="black", command=exit_app)
 btn_exit.pack(pady=10)
 
-# Start camera
+# Camera Init
 cap = cv2.VideoCapture(0)
 
 # Start update loop
 root.after(10, update_frame)
 root.mainloop()
-
