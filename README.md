@@ -17,7 +17,7 @@ This project uses **MediaPipe Face Mesh**, **OpenCV**, and **Pygame** to detect 
 
 ### 1. Clone or save the code
 
-Save the main Python script as `sleep_detector.py` and place an audio file named `visual1.mp3` in the same directory.
+Save the main Python script as `main.py` and place an audio file named `visual1.mp3, Warning.mp3` in the same directory.
 
 ### 2. Create a virtual environment (recommended)
 
