@@ -59,8 +59,9 @@ pip3 install tk
 ```
 project_folder/
 │
-├── sleep_detector.py     # Main Python file
-├── visual1.mp3           # Alarm sound file
+├── main.py               # Main Python file
+├── visual1.mp3           # Alarm sound file for sleepy detection
+├── Warning.mp3           # Warning sound file for not detect person/face
 └── README.md             # This file
 ```
 
@@ -69,7 +70,7 @@ project_folder/
 ## ▶️ How to Run
 
 ```bash
-python sleep_detector.py
+python3 main.py
 ```
 
 A GUI window will open with three buttons:
